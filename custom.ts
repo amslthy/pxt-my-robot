@@ -14,32 +14,8 @@ namespace robot {
         return 0;
     }
 
-
     // ==========================================
-    // 2. Headlights
-    // ==========================================
-
-    /**
-     * ตั้งค่าไฟหน้า On / Off
-     */
-    //% block="set %light headlight to %state"
-    //% group="Headlights" weight=90
-    export function setHeadlight(light: RobotLightSide, state: RobotToggleState): void {
-        // โค้ดควบคุมไฟหน้า
-    }
-
-    /**
-     * สลับสถานะไฟหน้า (Toggle)
-     */
-    //% block="Toggle %light headlight"
-    //% group="Headlights" weight=89
-    export function toggleHeadlight(light: RobotLightSide): void {
-        // โค้ดสลับสถานะไฟหน้า
-    }
-
-
-    // ==========================================
-    // 3. DC Motors
+    // 2. DC Motors
     // ==========================================
 
     /**
@@ -103,7 +79,7 @@ namespace robot {
 
 
     // ==========================================
-    // 4. Maker Line
+    // 3. Maker Line
     // ==========================================
 
     /**
@@ -126,7 +102,7 @@ namespace robot {
 
 
     // ==========================================
-    // 5. Servos
+    // 4. Servos
     // ==========================================
 
     /**
