@@ -1,6 +1,42 @@
 //% color="#e67e22" weight=100 icon="\uf1b9" block="Robot"
 namespace robot {
 
+    // กำหนดการต่อพินตามบอร์ด ZOOM:BIT / REKA:BIT
+    const LEFT_MOTOR = MotorChannel.M1;
+    const RIGHT_MOTOR = MotorChannel.M2;
+    const MAKER_LINE_PIN = AnalogPin.P1;
+    const US_TRIG_PIN = DigitalPin.P2;
+    const US_ECHO_PIN = DigitalPin.P12;
+
+    // ระบบ Ultrasonic ใน Background
+    let usDistance = 255;
+    let usFlag = 0;
+    const board_ver = control.hardwareVersion();
+    let const_2divspeed = (board_ver == "1") ? 39 : 58;
+
+    control.inBackground(function () {
+        while (1) {
+            if (usFlag == 1) {
+                pins.digitalWritePin(US_TRIG_PIN, 0);
+                control.waitMicros(2);
+                pins.digitalWritePin(US_TRIG_PIN, 1);
+                control.waitMicros(10);
+                pins.digitalWritePin(US_TRIG_PIN, 0);
+
+                const pulse = pins.pulseIn(US_ECHO_PIN, PulseValue.High, 255 * const_2divspeed + 20000);
+
+                if (pulse == 0) {
+                    usDistance = 255;
+                } else {
+                    usDistance = Math.idiv(pulse, const_2divspeed);
+                }
+                basic.pause(200);
+            } else {
+                basic.pause(50);
+            }
+        }
+    });
+
     // ==========================================
     // 1. Ultrasonic
     // ==========================================
@@ -11,7 +47,11 @@ namespace robot {
     //% block="ultrasonic distance (cm)"
     //% group="Ultrasonic" weight=100
     export function ultrasonicDistance(): number {
-        return 0;
+        if (usFlag == 0) {
+            usFlag = 1;
+            basic.pause(300);
+        }
+        return usDistance;
     }
 
     // ==========================================
@@ -24,7 +64,7 @@ namespace robot {
     //% block="brake"
     //% group="DC Motors" weight=80
     export function brake(): void {
-        // โค้ดเบรกมอเตอร์ทั้งหมด
+        rekabit.brakeMotor(MotorChannel.All);
     }
 
     /**
@@ -34,7 +74,9 @@ namespace robot {
     //% speed.min=0 speed.max=255 speed.defl=128
     //% group="DC Motors" weight=79
     export function move(dir: RobotMoveDirection, speed: number): void {
-        // โค้ดสั่งการเคลื่อนที่
+        let mDir = (dir == RobotMoveDirection.Forward) ? MotorDirection.Forward : MotorDirection.Backward;
+        rekabit.runMotor(LEFT_MOTOR, mDir, speed);
+        rekabit.runMotor(RIGHT_MOTOR, mDir, speed);
     }
 
     /**
@@ -44,7 +86,13 @@ namespace robot {
     //% speed.min=0 speed.max=255 speed.defl=128
     //% group="DC Motors" weight=78
     export function turn(dir: RobotTurnDirection, speed: number): void {
-        // โค้ดสั่งการเลี้ยว
+        if (dir == RobotTurnDirection.Left) {
+            rekabit.runMotor(LEFT_MOTOR, MotorDirection.Backward, speed);
+            rekabit.runMotor(RIGHT_MOTOR, MotorDirection.Forward, speed);
+        } else {
+            rekabit.runMotor(LEFT_MOTOR, MotorDirection.Forward, speed);
+            rekabit.runMotor(RIGHT_MOTOR, MotorDirection.Backward, speed);
+        }
     }
 
     /**
@@ -55,7 +103,11 @@ namespace robot {
     //% rightSpeed.min=-255 rightSpeed.max=255 rightSpeed.defl=0
     //% group="DC Motors" weight=77
     export function setMotorsSpeed(leftSpeed: number, rightSpeed: number): void {
-        // โค้ดกำหนดความเร็วมอเตอร์แยกฝั่ง
+        let leftDir = leftSpeed >= 0 ? MotorDirection.Forward : MotorDirection.Backward;
+        let rightDir = rightSpeed >= 0 ? MotorDirection.Forward : MotorDirection.Backward;
+
+        rekabit.runMotor(LEFT_MOTOR, leftDir, Math.abs(leftSpeed));
+        rekabit.runMotor(RIGHT_MOTOR, rightDir, Math.abs(rightSpeed));
     }
 
     /**
@@ -64,7 +116,8 @@ namespace robot {
     //% block="brake motor %motor"
     //% group="DC Motors" weight=76
     export function brakeMotor(motor: RobotMotorChannel): void {
-        // โค้ดหยุดมอเตอร์เฉพาะตัว
+        let target = (motor == RobotMotorChannel.M1) ? MotorChannel.M1 : MotorChannel.M2;
+        rekabit.brakeMotor(target);
     }
 
     /**
@@ -74,9 +127,10 @@ namespace robot {
     //% speed.min=0 speed.max=255 speed.defl=128
     //% group="DC Motors" weight=75
     export function runMotor(motor: RobotMotorChannel, dir: RobotMoveDirection, speed: number): void {
-        // โค้ดหมุนมอเตอร์เฉพาะตัว
+        let target = (motor == RobotMotorChannel.M1) ? MotorChannel.M1 : MotorChannel.M2;
+        let mDir = (dir == RobotMoveDirection.Forward) ? MotorDirection.Forward : MotorDirection.Backward;
+        rekabit.runMotor(target, mDir, speed);
     }
-
 
     // ==========================================
     // 3. Maker Line
@@ -88,18 +142,35 @@ namespace robot {
     //% block="line detected on %sensor"
     //% group="Maker Line" weight=70
     export function lineDetected(sensor: RobotLineSensorPos): boolean {
+        let analogValue = pins.analogReadPin(MAKER_LINE_PIN);
+
+        switch (sensor) {
+            case RobotLineSensorPos.FarLeft:
+                return (analogValue >= 81 && analogValue < 266);
+            case RobotLineSensorPos.Left:
+                return (analogValue >= 266 && analogValue < 430);
+            case RobotLineSensorPos.Center:
+                return (analogValue >= 430 && analogValue <= 593);
+            case RobotLineSensorPos.Right:
+                return (analogValue > 593 && analogValue <= 757);
+            case RobotLineSensorPos.FarRight:
+                return (analogValue > 757 && analogValue <= 941);
+        }
         return false;
     }
 
     /**
-     * อ่านค่าตำแหน่งเส้น
+     * อ่านค่าตำแหน่งเส้น (-100 ถึง 100)
      */
     //% block="line position"
     //% group="Maker Line" weight=69
     export function linePosition(): number {
-        return 0;
-    }
+        let analogValue = pins.analogReadPin(MAKER_LINE_PIN);
+        if (analogValue < 81 || analogValue > 941) return 0;
 
+        let position = (analogValue - 512) / 4;
+        return rekabit.limit(position, -100, 100);
+    }
 
     // ==========================================
     // 4. Servos
@@ -111,7 +182,11 @@ namespace robot {
     //% block="disable servo %servo"
     //% group="Servos" weight=60
     export function disableServo(servo: RobotServoChannel): void {
-        // โค้ดปิดสัญญาณ Servo
+        let sChannel = ServoChannel.S1;
+        if (servo == RobotServoChannel.S2) sChannel = ServoChannel.S2;
+        if (servo == RobotServoChannel.S3) sChannel = ServoChannel.S3;
+
+        rekabit.disableServo(sChannel);
     }
 
     /**
@@ -121,68 +196,10 @@ namespace robot {
     //% degrees.min=0 degrees.max=180 degrees.defl=90
     //% group="Servos" weight=59
     export function setServo(servo: RobotServoChannel, degrees: number): void {
-        // โค้ดหมุน Servo
+        let sChannel = ServoChannel.S1;
+        if (servo == RobotServoChannel.S2) sChannel = ServoChannel.S2;
+        if (servo == RobotServoChannel.S3) sChannel = ServoChannel.S3;
+
+        rekabit.setServoPosition(sChannel, degrees);
     }
-}
-
-
-// ==========================================
-// Enum Definitions
-// ==========================================
-
-enum RobotLightSide {
-    //% block="left"
-    Left,
-    //% block="right"
-    Right
-}
-
-enum RobotToggleState {
-    //% block="on"
-    On,
-    //% block="off"
-    Off
-}
-
-enum RobotMoveDirection {
-    //% block="forward"
-    Forward,
-    //% block="backward"
-    Backward
-}
-
-enum RobotTurnDirection {
-    //% block="left"
-    Left,
-    //% block="right"
-    Right
-}
-
-enum RobotMotorChannel {
-    //% block="M1"
-    M1,
-    //% block="M2"
-    M2
-}
-
-enum RobotLineSensorPos {
-    //% block="far left"
-    FarLeft,
-    //% block="left"
-    Left,
-    //% block="center"
-    Center,
-    //% block="right"
-    Right,
-    //% block="far right"
-    FarRight
-}
-
-enum RobotServoChannel {
-    //% block="S1"
-    S1,
-    //% block="S2"
-    S2,
-    //% block="S3"
-    S3
 }
